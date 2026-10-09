@@ -1,0 +1,107 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Keyboard</title>
+<style>
+:root{--panel:#0d0e11;--body:#15171c;--deck:#1b1e25;--line:#8a8f9a;--detail:#3a3e48;--recess:#0a0b0e;--ink:#9aa0ab;--ink-hi:#e8eaee;--glass:#101218;--glass-on:#2a1a0c;--accent:#ff8a3d;--accent-hi:#ffc08a;--accent-dim:#6b3a18}
+@media(prefers-color-scheme:light){:root{--panel:#eceae6;--body:#fbfaf8;--deck:#f1efeb;--line:#555a63;--detail:#bdbab4;--recess:#dedbd5;--ink:#555a63;--ink-hi:#1a1c20;--glass:#e4e1db;--glass-on:#ffe6d0;--accent:#d9560f;--accent-hi:#b8420a;--accent-dim:#f0b891}}
+*{box-sizing:border-box}body{margin:0;background:var(--panel);color:var(--ink);font:13px ui-monospace,Menlo,monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+.plate{position:relative;width:min(960px,100%)}.cap{display:flex;justify-content:space-between;letter-spacing:.08em;text-transform:uppercase;font-size:11px;margin-bottom:8px}
+svg{width:100%;height:auto;display:block;outline:none;overflow:visible}
+.glowbg{position:absolute;inset:0;background:radial-gradient(closest-side,var(--accent-dim),transparent 70%);opacity:0;transition:opacity .4s;pointer-events:none}.glowbg.on{opacity:.5}
+svg *{vector-effect:non-scaling-stroke}
+.face{fill:var(--body);stroke:var(--line);stroke-width:1;stroke-linejoin:round}.face.top{fill:var(--deck)}.face.recess{fill:var(--recess)}
+.detail{fill:none;stroke:var(--detail);stroke-width:1}.label{fill:var(--ink);stroke:none}
+.press{cursor:pointer;transition:transform .08s}.press.down,.press.lit{transform:translateY(3px)}
+.press.lit .face{fill:var(--glass-on);stroke:var(--accent);filter:url(#soft)}.press.lit .label{fill:var(--accent-hi)}
+.glass{fill:var(--glass);stroke:var(--line)}.glass.hot{fill:var(--glass-on);stroke:var(--accent)}
+.halo{fill:none;opacity:0}.halo.hot{fill:var(--accent);opacity:.55}
+.scr-accent{fill:var(--accent-hi);stroke:none;filter:url(#soft)}
+.led{fill:var(--detail);stroke:var(--line)}.led.hot{fill:var(--accent);stroke:var(--accent-hi)}
+.foot{margin-top:14px;font-size:11px;opacity:.7}.foot a{color:inherit}
+</style></head><body>
+<div class="plate"><div class="cap"><span id="fig">Fig 1 · Keyboard</span><span id="ro"></span></div><div class="glowbg" id="gb"></div>
+<svg id="stage" tabindex="0" role="img" aria-label="Isometric keyboard. Type on your keyboard or click keys to write on the glowing display."></svg></div>
+<div class="foot">Made with <a href="https://iso-glow.vercel.app">ISO-GLOW ↗</a></div>
+<svg width="0" height="0" style="position:absolute"><defs>
+<filter id="soft" filterUnits="userSpaceOnUse" x="-5000" y="-5000" width="10000" height="10000"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="bloom" filterUnits="userSpaceOnUse" x="-5000" y="-5000" width="10000" height="10000"><feGaussianBlur stdDeviation="9"/></filter></defs></svg>
+<script>
+const FIGS=[];
+FIGS.push({
+  id: 'keyboard', name: 'Keyboard', hint: 'Type on your keyboard or click the keys · Backspace erases',
+  aria: 'Isometric keyboard. Type on your keyboard or click keys to write on the glowing display.',
+  mount(stage, api) {
+    const K = api.iso.frame([[0,0,0],[340,0,0],[0,136,0],[340,136,0],[0,0,24],[340,136,24]]);
+    const { TOP, box } = K;
+    const rows = [['q','w','e','r','t','y','u','i','o','p'], ['a','s','d','f','g','h','j','k','l'], ['z','x','c','v','b','n','m']];
+    const offs = [14, 24, 38], PITCH = 28, Z = 10;
+    let svg = box(0,0,0, 340,136,Z, 10);
+    svg += `<g transform="${TOP(0,0,Z)}"><rect class="detail" x="6" y="6" width="328" height="124" rx="6"/></g>`;
+    // display
+    svg += `<g transform="${TOP(0,0,Z)}"><rect class="halo hot" id="kb-halo" filter="url(#bloom)" x="14" y="10" width="312" height="22" rx="3"/>` +
+           `<rect class="glass hot" id="kb-glass" x="14" y="10" width="312" height="22" rx="3"/>` +
+           `<text id="kb-text" class="scr-accent" x="22" y="26" font-family="monospace" font-size="13"></text></g>`;
+    // status led
+    svg += `<g transform="${TOP(0,0,Z)}"><circle id="kb-led" class="led" filter="url(#soft)" cx="326" cy="42" r="3"/></g>`;
+    const key = (k, x, y, w, label) =>
+      `<g class="press" data-k="${k}">${box(x, y, Z, w, 16, 6, 3)}` +
+      `<g transform="${TOP(x, y, Z + 6)}"><text class="label" x="${w/2}" y="12" text-anchor="middle" font-size="10" font-family="monospace">${api.iso.esc(label)}</text></g></g>`;
+    rows.forEach((r, i) => r.forEach((c, j) => { svg += key(c, offs[i] + j * PITCH, 40 + i * 22, 24, c); }));
+    svg += key('Backspace', 14 + 10 * PITCH, 40, 30, '⌫');
+    svg += key(' ', 70, 106, 196, '');
+    stage.setAttribute('viewBox', K.viewBox); stage.innerHTML = svg;
+
+    const st = { text: '' };
+    const txt = stage.querySelector('#kb-text'), led = stage.querySelector('#kb-led');
+    const keyEl = k => stage.querySelector(`[data-k="${CSS.escape(k)}"]`);
+    function render() {
+      txt.textContent = st.text.slice(-34) + '_';
+      led.classList.toggle('hot', st.text.length > 0);
+      api.power(st.text.length > 0);
+      api.readout(`${st.text.length} chars`);
+    }
+    function press(k) {
+      if (k === 'Backspace') st.text = st.text.slice(0, -1);
+      else st.text += k;
+      const el = keyEl(k); if (el) api.flash(el);
+      render();
+    }
+    stage.addEventListener('click', e => { const g = e.target.closest('[data-k]'); if (g) press(g.dataset.k); });
+    render();
+    return {
+      key(e) {
+        if (e.ctrlKey || e.metaKey || e.altKey) return false;
+        const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        if (k === 'Backspace' || keyEl(k)) { press(k); return true; }
+        return false;
+      },
+      demo() { [...'hello'].forEach((c, i) => api.after(250 + i * 220, () => press(c))); },
+    };
+  },
+});
+(function(){
+const C=Math.cos(Math.PI/6),S=Math.sin(Math.PI/6);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function frame(pts){
+  const raw=pts.map(([x,y,z])=>[(x-y)*C,(x+y)*S-z]);
+  let x0=Math.min(...raw.map(p=>p[0]))-30,x1=Math.max(...raw.map(p=>p[0]))+30,y0=Math.min(...raw.map(p=>p[1]))-30,y1=Math.max(...raw.map(p=>p[1]))+30;
+  let w=x1-x0,h=y1-y0;if(w/h<4/3){const nw=h*4/3;x0-=(nw-w)/2;w=nw}else{const nh=w*3/4;y0-=(nh-h)/2;h=nh}
+  const OX=-x0,OY=-y0;
+  const P=(x,y,z)=>[(x-y)*C+OX,(x+y)*S-z+OY],D=(x,y,z)=>[(x-y)*C,(x+y)*S-z];
+  const plane=(O,U,V)=>{const o=P(...O),u=D(...U),v=D(...V);return `matrix(${u[0]} ${u[1]} ${v[0]} ${v[1]} ${o[0]} ${o[1]})`};
+  const TOP=(x,y,z)=>plane([x,y,z],[1,0,0],[0,1,0]),FRONT=(x,y,z)=>plane([x,y,z],[1,0,0],[0,0,-1]),SIDE=(x,y,z)=>plane([x,y,z],[0,-1,0],[0,0,-1]);
+  const rect=(t,w,h,r=0,cls='face')=>`<g transform="${t}"><rect class="${cls}" width="${w}" height="${h}" rx="${r}"/></g>`;
+  const box=(x,y,z,w,d,h,r=0)=>rect(FRONT(x,y+d,z+h),w,h,0)+rect(SIDE(x+w,y+d,z+h),d,h,0)+rect(TOP(x,y,z+h),w,d,r,'face top');
+  return{viewBox:`0 0 ${w} ${h}`,P,D,TOP,FRONT,SIDE,rect,box};
+}
+const stage=document.getElementById('stage'),ro=document.getElementById('ro'),gb=document.getElementById('gb');
+let timers=[];
+const api={iso:{frame,esc},readout:s=>ro.textContent=s,power:b=>gb.classList.toggle('on',b),
+ after:(ms,fn)=>{timers.push(setTimeout(fn,ms))},every:(ms,fn)=>{timers.push(setInterval(fn,ms))},
+ flash(el){el.classList.add('lit');setTimeout(()=>el.classList.remove('lit'),160)}};
+const fig=FIGS[0];stage.dataset.fig=fig.id;
+const inst=fig.mount(stage,api);
+document.title=fig.name;
+addEventListener('keydown',e=>{if(inst.key&&inst.key(e))e.preventDefault()});
+if(location.search.includes('demo')||true)inst.demo&&inst.demo();
+stage.focus();
+})();
+</script></body></html>

@@ -1,0 +1,143 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Guitar</title>
+<style>
+:root{--panel:#0d0e11;--body:#15171c;--deck:#1b1e25;--line:#8a8f9a;--detail:#3a3e48;--recess:#0a0b0e;--ink:#9aa0ab;--ink-hi:#e8eaee;--glass:#101218;--glass-on:#2a1a0c;--accent:#ff8a3d;--accent-hi:#ffc08a;--accent-dim:#6b3a18}
+@media(prefers-color-scheme:light){:root{--panel:#eceae6;--body:#fbfaf8;--deck:#f1efeb;--line:#555a63;--detail:#bdbab4;--recess:#dedbd5;--ink:#555a63;--ink-hi:#1a1c20;--glass:#e4e1db;--glass-on:#ffe6d0;--accent:#d9560f;--accent-hi:#b8420a;--accent-dim:#f0b891}}
+*{box-sizing:border-box}body{margin:0;background:var(--panel);color:var(--ink);font:13px ui-monospace,Menlo,monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+.plate{position:relative;width:min(960px,100%)}.cap{display:flex;justify-content:space-between;letter-spacing:.08em;text-transform:uppercase;font-size:11px;margin-bottom:8px}
+svg{width:100%;height:auto;display:block;outline:none;overflow:visible}
+.glowbg{position:absolute;inset:0;background:radial-gradient(closest-side,var(--accent-dim),transparent 70%);opacity:0;transition:opacity .4s;pointer-events:none}.glowbg.on{opacity:.5}
+svg *{vector-effect:non-scaling-stroke}
+.face{fill:var(--body);stroke:var(--line);stroke-width:1;stroke-linejoin:round}.face.top{fill:var(--deck)}.face.recess{fill:var(--recess)}
+.detail{fill:none;stroke:var(--detail);stroke-width:1}.label{fill:var(--ink);stroke:none}
+.press{cursor:pointer;transition:transform .08s}.press.down,.press.lit{transform:translateY(3px)}
+.press.lit .face{fill:var(--glass-on);stroke:var(--accent);filter:url(#soft)}.press.lit .label{fill:var(--accent-hi)}
+.glass{fill:var(--glass);stroke:var(--line)}.glass.hot{fill:var(--glass-on);stroke:var(--accent)}
+.halo{fill:none;opacity:0}.halo.hot{fill:var(--accent);opacity:.55}
+.scr-accent{fill:var(--accent-hi);stroke:none;filter:url(#soft)}
+.led{fill:var(--detail);stroke:var(--line)}.led.hot{fill:var(--accent);stroke:var(--accent-hi)}
+.slab{fill:var(--body);stroke:var(--body);stroke-width:1}
+.wire{stroke:var(--ink-hi);stroke-width:1;fill:none}.wire.hot{stroke:var(--accent-hi);stroke-width:1.6;filter:url(#glow)}
+.hit{stroke:transparent;stroke-width:12;fill:none;cursor:pointer;pointer-events:stroke}
+.foot{margin-top:14px;font-size:11px;opacity:.7}.foot a{color:inherit}
+</style></head><body>
+<div class="plate"><div class="cap"><span id="fig">Fig 1 · Guitar</span><span id="ro"></span></div><div class="glowbg" id="gb"></div>
+<svg id="stage" tabindex="0" role="img" aria-label="Isometric electric guitar. Click a string or press 1 to 6 to pluck, space to strum."></svg></div>
+<div class="foot">Made with <a href="https://iso-glow.vercel.app">ISO-GLOW ↗</a></div>
+<svg width="0" height="0" style="position:absolute"><defs>
+<filter id="soft" filterUnits="userSpaceOnUse" x="-5000" y="-5000" width="10000" height="10000"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glow" filterUnits="userSpaceOnUse" x="-5000" y="-5000" width="10000" height="10000"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="bloom" filterUnits="userSpaceOnUse" x="-5000" y="-5000" width="10000" height="10000"><feGaussianBlur stdDeviation="9"/></filter></defs></svg>
+<script>
+const FIGS=[];
+FIGS.push({
+  id: 'guitar', name: 'Guitar', hint: 'Click a string · keys 1–6 pluck · space strums',
+  aria: 'Isometric electric guitar with six strings. Click a string or press keys 1 to 6 to pluck it, space to strum all.',
+  mount(stage, api) {
+    const K = api.iso.frame([[0,0,0],[392,0,0],[0,110,0],[392,110,0],[0,0,18],[392,110,18]]);
+    const { P, TOP, box } = K;
+    const BODY = 'M128 42 C112 42 108 14 84 14 C70 14 66 34 50 34 C36 34 34 6 14 6 C-6 6 -6 104 14 104 C34 104 36 76 50 76 C66 76 70 96 84 96 C108 96 112 68 128 68 Z';
+    const H = 10;
+    let svg = '';
+    // body: stacked slab for the side wall, then the top
+    svg += `<g transform="${TOP(0,0,0)}"><path class="face" d="${BODY}"/></g>`;
+    for (let z = 1; z < H; z++) svg += `<g transform="${TOP(0,0,z)}"><path class="slab" d="${BODY}"/></g>`;
+    svg += `<g transform="${TOP(0,0,H)}"><path class="face top" d="${BODY}"/><path class="detail" transform="translate(0 0)" d="M118 46 C108 46 100 30 86 26 C70 22 60 40 48 42 C36 44 30 24 18 22 C6 22 4 90 18 88 C30 86 36 66 48 68 C60 70 70 88 86 84 C100 80 108 64 118 64 Z"/></g>`;
+    // neck + fretboard + headstock
+    svg += box(128,42,0, 200,26,H, 2);
+    svg += `<g transform="${TOP(128,42,H)}"><rect class="detail" x="0" y="0" width="200" height="26"/>${api.iso.slits(24,196,24,0,26,true,'detail')}`;
+    [72,120,168].forEach(x => svg += `<circle class="detail" cx="${x+12}" cy="13" r="2.4"/>`);
+    svg += `</g>`;
+    svg += box(328,38,0, 58,34,H, 6);
+    svg += `<g transform="${TOP(328,38,H)}">` + [[16,8],[34,8],[52,8],[16,26],[34,26],[52,26]].map(([x,y]) => `<circle class="face top" cx="${x}" cy="${y}" r="3.2"/>`).join('') + `<rect class="detail" x="0" y="0" width="6" height="34"/></g>`;
+    // pickups (they glow while strings ring)
+    [[78,0],[104,1]].forEach(([x,i]) => {
+      svg += box(x,36,H, 14,38,2, 2);
+      svg += `<g transform="${TOP(x,36,H+2)}"><rect id="guitar-pu${i}" class="led" filter="url(#soft)" x="2" y="3" width="10" height="32" rx="2"/></g>`;
+    });
+    // bridge
+    svg += box(38,38,H, 10,34,3, 1);
+    // strings
+    const NS = 6, NOTES = [['E2',82.41],['A2',110],['D3',146.83],['G3',196],['B3',246.94],['E4',329.63]];
+    const yBridge = i => 41.5 + i * 5.6, yNut = i => 44.2 + i * 3.52;
+    for (let i = 0; i < NS; i++) svg += `<path id="guitar-s${i}" class="wire" fill="none" d=""/><path id="guitar-h${i}" data-s="${i}" class="hit" fill="none" d=""/>`;
+    stage.setAttribute('viewBox', K.viewBox); stage.innerHTML = svg;
+
+    const ZS = H + 4, XB = 44, XN = 372;
+    const els = [...Array(NS)].map((_, i) => ({ s: stage.querySelector('#guitar-s' + i), h: stage.querySelector('#guitar-h' + i) }));
+    const pu = [0, 1].map(i => stage.querySelector('#guitar-pu' + i));
+    const amp = new Array(NS).fill(0), t0 = new Array(NS).fill(0);
+    const pos = (i, t, off) => { const x = XB + (XN - XB) * t, y = yBridge(i) + (yNut(i) - yBridge(i)) * t + off; return P(x, y, ZS).map(v => v.toFixed(2)).join(' '); };
+    function draw(i, now) {
+      const a = amp[i] ? amp[i] * Math.exp(-(now - t0[i]) / 900) : 0;
+      if (a < 0.06 && amp[i]) { amp[i] = 0; }
+      const w = (a < 0.06 ? 0 : a), ph = Math.cos((now - t0[i]) / 1000 * (14 + i * 3) * Math.PI * 2 / 4);
+      let d = '';
+      for (let k = 0; k <= 24; k++) { const t = k / 24; d += (k ? 'L' : 'M') + pos(i, t, w * Math.sin(Math.PI * t) * ph); }
+      els[i].s.setAttribute('d', d); els[i].h.setAttribute('d', d);
+      els[i].s.classList.toggle('hot', w > 0);
+    }
+    const all = [...Array(NS).keys()];
+    function render(now) {
+      all.forEach(i => draw(i, now));
+      const on = amp.some(a => a > 0);
+      pu.forEach(p => p.classList.toggle('hot', on));
+      api.power(on);
+    }
+    function tone(i) {
+      try {
+        const { ctx, out } = api.audio(), f = NOTES[i][1], t = ctx.currentTime;
+        [1, 2, 3].forEach((m, j) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = j ? 'sine' : 'triangle'; o.frequency.value = f * m;
+          g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22 / (m * m), t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+          o.connect(g); g.connect(out); o.start(t); o.stop(t + 1.9);
+        });
+      } catch (e) {}
+    }
+    function pluck(i, strength = 1.8) {
+      amp[i] = strength; t0[i] = performance.now(); tone(i);
+      api.readout(`string ${i + 1} · ${NOTES[i][0]}`);
+    }
+    stage.addEventListener('pointerdown', e => { const h = e.target.closest('[data-s]'); if (h) pluck(+h.dataset.s); });
+    api.loop(render); render(performance.now()); api.readout('tuned · e a d g b e');
+    const strum = () => all.forEach(i => api.after(i * 70, () => pluck(i)));
+    return {
+      key(e) {
+        if (/^[1-6]$/.test(e.key)) { pluck(+e.key - 1); return true; }
+        if (e.key === ' ' || e.key === 'Enter') { strum(); return true; }
+        return false;
+      },
+      demo() { api.after(300, strum); },
+    };
+  },
+});
+(function(){
+const C=Math.cos(Math.PI/6),S=Math.sin(Math.PI/6);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function frame(pts){
+  const raw=pts.map(([x,y,z])=>[(x-y)*C,(x+y)*S-z]);
+  let x0=Math.min(...raw.map(p=>p[0]))-30,x1=Math.max(...raw.map(p=>p[0]))+30,y0=Math.min(...raw.map(p=>p[1]))-30,y1=Math.max(...raw.map(p=>p[1]))+30;
+  let w=x1-x0,h=y1-y0;if(w/h<4/3){const nw=h*4/3;x0-=(nw-w)/2;w=nw}else{const nh=w*3/4;y0-=(nh-h)/2;h=nh}
+  const OX=-x0,OY=-y0;
+  const P=(x,y,z)=>[(x-y)*C+OX,(x+y)*S-z+OY],D=(x,y,z)=>[(x-y)*C,(x+y)*S-z];
+  const plane=(O,U,V)=>{const o=P(...O),u=D(...U),v=D(...V);return `matrix(${u[0]} ${u[1]} ${v[0]} ${v[1]} ${o[0]} ${o[1]})`};
+  const TOP=(x,y,z)=>plane([x,y,z],[1,0,0],[0,1,0]),FRONT=(x,y,z)=>plane([x,y,z],[1,0,0],[0,0,-1]),SIDE=(x,y,z)=>plane([x,y,z],[0,-1,0],[0,0,-1]);
+  const rect=(t,w,h,r=0,cls='face')=>`<g transform="${t}"><rect class="${cls}" width="${w}" height="${h}" rx="${r}"/></g>`;
+  const box=(x,y,z,w,d,h,r=0)=>rect(FRONT(x,y+d,z+h),w,h,0)+rect(SIDE(x+w,y+d,z+h),d,h,0)+rect(TOP(x,y,z+h),w,d,r,'face top');
+  return{viewBox:`0 0 ${w} ${h}`,P,D,TOP,FRONT,SIDE,rect,box};
+}
+const stage=document.getElementById('stage'),ro=document.getElementById('ro'),gb=document.getElementById('gb');
+let timers=[];
+const api={iso:{frame,esc},readout:s=>ro.textContent=s,power:b=>gb.classList.toggle('on',b),
+ loop(fn){let on=true;const f=ts=>{if(!on)return;fn(ts);requestAnimationFrame(f)};requestAnimationFrame(f);return()=>{on=false}},
+ audio(){if(!api._a){const ctx=new(window.AudioContext||window.webkitAudioContext)();const out=ctx.createGain();out.gain.value=.8;out.connect(ctx.destination);api._a={ctx,out}}if(api._a.ctx.state==='suspended')api._a.ctx.resume();return api._a},
+ after:(ms,fn)=>{timers.push(setTimeout(fn,ms))},every:(ms,fn)=>{timers.push(setInterval(fn,ms))},
+ flash(el){el.classList.add('lit');setTimeout(()=>el.classList.remove('lit'),160)}};
+const fig=FIGS[0];stage.dataset.fig=fig.id;
+const inst=fig.mount(stage,api);
+document.title=fig.name;document.getElementById('fig').textContent='Fig 1 · '+fig.name;
+addEventListener('keydown',e=>{if(inst.key&&inst.key(e))e.preventDefault()});
+if(location.search.includes('demo')||true)inst.demo&&inst.demo();
+stage.focus();
+})();
+</script></body></html>

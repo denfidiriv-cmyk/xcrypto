@@ -126,9 +126,10 @@ function frame(pts){
   const box=(x,y,z,w,d,h,r=0)=>rect(FRONT(x,y+d,z+h),w,h,0)+rect(SIDE(x+w,y+d,z+h),d,h,0)+rect(TOP(x,y,z+h),w,d,r,'face top');
   return{viewBox:`0 0 ${w} ${h}`,P,D,TOP,FRONT,SIDE,rect,box};
 }
+function slits(a0,a1,step,b0,b1,vertical=true,cls='detail'){let s='';for(let a=a0;a<=a1+1e-9;a+=step)s+=vertical?`<line class="${cls}" x1="${a}" y1="${b0}" x2="${a}" y2="${b1}"/>`:`<line class="${cls}" x1="${b0}" y1="${a}" x2="${b1}" y2="${a}"/>`;return s}
 const stage=document.getElementById('stage'),ro=document.getElementById('ro'),gb=document.getElementById('gb');
 let timers=[];
-const api={iso:{frame,esc},readout:s=>ro.textContent=s,power:b=>gb.classList.toggle('on',b),
+const api={iso:{frame,esc,slits},readout:s=>ro.textContent=s,power:b=>gb.classList.toggle('on',b),
  loop(fn){let on=true;const f=ts=>{if(!on)return;fn(ts);requestAnimationFrame(f)};requestAnimationFrame(f);return()=>{on=false}},
  audio(){if(!api._a){const ctx=new(window.AudioContext||window.webkitAudioContext)();const out=ctx.createGain();out.gain.value=.8;out.connect(ctx.destination);api._a={ctx,out}}if(api._a.ctx.state==='suspended')api._a.ctx.resume();return api._a},
  after:(ms,fn)=>{timers.push(setTimeout(fn,ms))},every:(ms,fn)=>{timers.push(setInterval(fn,ms))},

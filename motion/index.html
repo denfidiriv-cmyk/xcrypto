@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>XCRYPTO Motion</title>
+<meta name="viewport" content="width=1920">
+<style>
+  :root { --bg:#05070d; --ink:#e8f1ff; --dim:#6b7a99; --a:#2de2c5; --b:#7a5cff; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1920px; height:1080px; background:var(--bg); overflow:hidden; }
+  #stage { position:relative; width:1920px; height:1080px; background:var(--bg); font-family:'Inter',sans-serif; color:var(--ink); }
+  canvas { position:absolute; inset:0; width:1920px; height:1080px; }
+  .bar { position:absolute; left:80px; right:80px; display:flex; justify-content:space-between; align-items:center;
+         font-size:22px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); font-weight:500; }
+  #top { top:56px; } #bottom { bottom:56px; }
+  #brand { color:var(--ink); font-weight:700; }
+  #brand i { font-style:normal; color:var(--a); }
+  #track { position:absolute; left:80px; right:80px; bottom:110px; height:2px; background:rgba(255,255,255,.08); }
+  #fill { height:100%; width:0; background:linear-gradient(90deg,var(--a),var(--b)); }
+  .tnum { font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" width="1920" height="1080"></canvas>
+  <div class="bar" id="top"><span id="brand"></span><span id="tag" class="tnum"></span></div>
+  <div id="track"><div id="fill"></div></div>
+  <div class="bar" id="bottom"><span id="scene"></span><span id="clock" class="tnum"></span></div>
+</div>
+
+<script>
+// ───────────────────────── CONFIG: all text, numbers, timings ─────────────────────────
+const CFG = {
+  width: 1920, height: 1080, fps: 60,
+  duration: 12,                       // seconds
+  font: { family: 'Inter', weights: [400, 700, 800] },
+  colors: { bg:'#05070d', ink:'#e8f1ff', dim:'#6b7a99', a:'#2de2c5', b:'#7a5cff', warn:'#ff5c8a' },
+  seed: 1337,
+  fade: 0.6,                          // crossfade seconds between scenes
+  chrome: { brand:['X','CRYPTO'], tag:'Motion Reel · 2026' },
+  // scene windows [start, end] in seconds
+  scenes: [
+    { id:'intro',  label:'01 / Genesis',  start:0.0,  end:3.4 },
+    { id:'chain',  label:'02 / Chain',    start:3.0,  end:6.9 },
+    { id:'stats',  label:'03 / Network',  start:6.5,  end:9.9 },
+    { id:'outro',  label:'04 / Next',     start:9.5,  end:12.0 },
+  ],
+  intro: { title:'XCRYPTO', kicker:'TRUST, COMPUTED', particles:420, titleIn:[0.35, 1.4], kickerIn:[1.3, 2.1] },
+  chain: {
+    heading:'Every block seals the last', blocks:5, hashLen:12, headingIn:[0, 0.7],
+    blockStagger:0.38, blockDur:0.6, labels:['GENESIS','BLOCK 1','BLOCK 2','BLOCK 3','BLOCK 4'],
+    scramble:0.9
+  },
+  stats: {
+    heading:'Network at a glance', headingIn:[0, 0.7],
+    items:[
+      { label:'Transactions / sec', value:84200,  fmt:'int',  max:100000 },
+      { label:'Validators',         value:12480,  fmt:'int',  max:15000  },
+      { label:'Finality (ms)',      value:380,    fmt:'int',  max:1000   },
+      { label:'Uptime %',           value:99.99,  fmt:'dec2', max:100    },
+    ],
+    stagger:0.25, countDur:1.8
+  },
+  outro: { line1:'Secure by math.', line2:'Fast by design.', cta:'xcrypto.io', in1:[0.1,0.9], in2:[0.5,1.3], inCta:[1.1,1.7] }
+};
+
+// ───────────────────────── helpers ─────────────────────────
+const W = CFG.width, H = CFG.height;
+const clamp = (x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const lerp = (a,b,t)=>a+(b-a)*t;
+const prog = (t,[a,b])=>clamp((t-a)/(b-a));
+const easeOut = x=>1-Math.pow(1-x,3);
+const easeInOut = x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const easeBack = x=>{const c=1.70158,d=c+1;return 1+d*Math.pow(x-1,3)+c*Math.pow(x-1,2);};
+function mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function hex(seed,len){const r=mulberry(seed);let s='';for(let i=0;i<len;i++)s+='0123456789abcdef'[(r()*16)|0];return s;}
+const fmt = {
+  int:v=>Math.round(v).toLocaleString('en-US'),
+  dec2:v=>v.toFixed(2),
+};
+
+// ───────────────────────── precomputed deterministic data ─────────────────────────
+const rnd = mulberry(CFG.seed);
+const P = Array.from({length:CFG.intro.particles},()=>({
+  x:rnd()*W, y:rnd()*H, z:.3+rnd()*.7, ph:rnd()*6.283, sp:.2+rnd()*.5,
+  tx:W/2+(rnd()-.5)*900, ty:H/2+(rnd()-.5)*220
+}));
+const HASHES = Array.from({length:CFG.chain.blocks},(_,i)=>hex(CFG.seed+i*97,CFG.chain.hashLen));
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+// ───────────────────────── shared drawing ─────────────────────────
+function setFont(w,px){ctx.font=`${w} ${px}px ${CFG.font.family}, sans-serif`;}
+function text(s,x,y,{w=700,px=48,col=CFG.colors.ink,align='left',alpha=1,ls=0}={}){
+  setFont(w,px); ctx.fillStyle=col; ctx.globalAlpha*=alpha; ctx.textAlign=align; ctx.textBaseline='alphabetic';
+  if('letterSpacing' in ctx) ctx.letterSpacing=ls+'px';
+  ctx.fillText(s,x,y);
+  if('letterSpacing' in ctx) ctx.letterSpacing='0px';
+}
+function background(t){
+  ctx.globalAlpha=1; ctx.fillStyle=CFG.colors.bg; ctx.fillRect(0,0,W,H);
+  // drifting grid
+  ctx.strokeStyle='rgba(122,92,255,0.07)'; ctx.lineWidth=1;
+  const off=(t*20)%80;
+  ctx.beginPath();
+  for(let x=-80+off;x<W+80;x+=80){ctx.moveTo(x,0);ctx.lineTo(x,H);}
+  for(let y=-80+off;y<H+80;y+=80){ctx.moveTo(0,y);ctx.lineTo(W,y);}
+  ctx.stroke();
+  // glows
+  const g1=ctx.createRadialGradient(W*.2+Math.sin(t*.5)*80,H*.3,0,W*.2,H*.3,700);
+  g1.addColorStop(0,'rgba(45,226,197,0.10)');g1.addColorStop(1,'rgba(45,226,197,0)');
+  ctx.fillStyle=g1;ctx.fillRect(0,0,W,H);
+  const g2=ctx.createRadialGradient(W*.85,H*.8+Math.cos(t*.4)*60,0,W*.85,H*.8,800);
+  g2.addColorStop(0,'rgba(122,92,255,0.12)');g2.addColorStop(1,'rgba(122,92,255,0)');
+  ctx.fillStyle=g2;ctx.fillRect(0,0,W,H);
+}
+function grad(x0,x1){const g=ctx.createLinearGradient(x0,0,x1,0);g.addColorStop(0,CFG.colors.a);g.addColorStop(1,CFG.colors.b);return g;}
+function heading(s,t,inRange){
+  const p=easeOut(prog(t,inRange));
+  ctx.save(); ctx.globalAlpha*=p;
+  text(s,120,200+(1-p)*30,{w:800,px:72});
+  ctx.fillStyle=grad(120,420); ctx.fillRect(120,226,300*p,6);
+  ctx.restore();
+}
+
+// ───────────────────────── scenes (t = local seconds) ─────────────────────────
+function sceneIntro(t){
+  const C=CFG.intro, tIn=easeInOut(prog(t,[0,1.6]));
+  ctx.save();
+  // particles converge to a band then drift
+  for(const p of P){
+    const wob=Math.sin(t*p.sp*2+p.ph)*14;
+    const x=lerp(p.x,p.tx,tIn)+wob, y=lerp(p.y,p.ty,tIn)+Math.cos(t*p.sp*2+p.ph)*14;
+    ctx.globalAlpha=(.25+.6*p.z)*(1-.6*tIn);
+    ctx.fillStyle=p.z>.65?CFG.colors.a:CFG.colors.b;
+    ctx.beginPath();ctx.arc(x,y,1.5+p.z*2.5,0,6.283);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  // title letters
+  const letters=[...C.title], px=210, tw=[], cx=W/2;
+  setFont(800,px); if('letterSpacing' in ctx) ctx.letterSpacing='10px';
+  let total=0; for(const ch of letters){const w=ctx.measureText(ch).width;tw.push(w);total+=w;}
+  let x=cx-total/2;
+  letters.forEach((ch,i)=>{
+    const p=easeBack(prog(t,[C.titleIn[0]+i*0.07,C.titleIn[1]+i*0.07]));
+    const a=clamp(p);
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.fillStyle=grad(cx-total/2,cx+total/2);
+    ctx.shadowColor='rgba(45,226,197,0.55)'; ctx.shadowBlur=40*a;
+    setFont(800,px); ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.fillText(ch,x,H/2+60+(1-p)*90);
+    ctx.restore();
+    x+=tw[i];
+  });
+  if('letterSpacing' in ctx) ctx.letterSpacing='0px';
+  // kicker
+  const kp=easeOut(prog(t,C.kickerIn));
+  ctx.globalAlpha=kp;
+  const ls=12-6*kp;
+  text(C.kicker,W/2,H/2+160,{w:500,px:34,col:CFG.colors.dim,align:'center',ls});
+  // scan line
+  const sx=lerp(-200,W+200,easeInOut(prog(t,[0.2,1.8])));
+  const sg=ctx.createLinearGradient(sx-120,0,sx+120,0);
+  sg.addColorStop(0,'rgba(45,226,197,0)');sg.addColorStop(.5,'rgba(45,226,197,0.18)');sg.addColorStop(1,'rgba(45,226,197,0)');
+  ctx.globalAlpha=1-prog(t,[1.8,2.2]);ctx.fillStyle=sg;ctx.fillRect(sx-120,0,240,H);
+  ctx.restore();
+}
+
+function sceneChain(t){
+  const C=CFG.chain;
+  ctx.save();
+  heading(C.heading,t,C.headingIn);
+  const n=C.blocks, bw=290, bh=330, gap=70, total=n*bw+(n-1)*gap, x0=(W-total)/2, y0=400;
+  for(let i=0;i<n;i++){
+    const s=0.6+i*C.blockStagger, p=easeBack(prog(t,[s,s+C.blockDur])), a=clamp(p);
+    const x=x0+i*(bw+gap), y=y0+(1-p)*70;
+    // link to previous
+    if(i>0){
+      const lp=easeOut(prog(t,[s-0.2,s+0.25]));
+      const lx0=x-gap;
+      ctx.save(); ctx.globalAlpha=1;
+      ctx.strokeStyle=grad(lx0,x); ctx.lineWidth=4;
+      ctx.beginPath();ctx.moveTo(lx0,y0+bh/2);ctx.lineTo(lx0+gap*lp,y0+bh/2);ctx.stroke();
+      // travelling pulse
+      const pp=(t*1.2+i*.3)%1;
+      if(lp>=1){ctx.fillStyle=CFG.colors.a;ctx.beginPath();ctx.arc(lx0+gap*pp,y0+bh/2,6,0,6.283);ctx.fill();}
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.fillStyle='rgba(16,22,38,0.92)';
+    ctx.strokeStyle=grad(x,x+bw); ctx.lineWidth=2.5;
+    ctx.shadowColor='rgba(122,92,255,0.35)'; ctx.shadowBlur=30;
+    ctx.beginPath();ctx.roundRect(x,y,bw,bh,22);ctx.fill();ctx.shadowBlur=0;ctx.stroke();
+    text(C.labels[i],x+28,y+58,{w:700,px:24,col:CFG.colors.a,ls:3});
+    // hash lines with scramble resolve
+    const rs=prog(t,[s+C.blockDur*.5,s+C.blockDur*.5+C.scramble]);
+    const target=HASHES[i], prev=i>0?HASHES[i-1]:'0'.repeat(C.hashLen);
+    const rr=mulberry(hashStr(target)+((t*30)|0));
+    const show=(str)=>[...str].map((ch,k)=>(k/str.length<rs?ch:'0123456789abcdef'[(rr()*16)|0])).join('');
+    text('HASH',x+28,y+128,{w:500,px:18,col:CFG.colors.dim,ls:4});
+    text(show(target),x+28,y+164,{w:500,px:30,col:CFG.colors.ink});
+    text('PREV',x+28,y+222,{w:500,px:18,col:CFG.colors.dim,ls:4});
+    text(show(prev),x+28,y+258,{w:500,px:30,col:CFG.colors.dim});
+    // seal bar
+    ctx.globalAlpha=a; ctx.fillStyle=grad(x+28,x+bw-28); ctx.fillRect(x+28,y+bh-28,(bw-56)*rs,5);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function sceneStats(t){
+  const C=CFG.stats;
+  ctx.save();
+  heading(C.heading,t,C.headingIn);
+  const rowH=140, y0=340;
+  C.items.forEach((it,i)=>{
+    const s=0.5+i*C.stagger, e=prog(t,[s,s+C.countDur]), ee=easeOut(e);
+    const a=clamp(prog(t,[s-.1,s+.4])), y=y0+i*rowH+(1-a)*30;
+    ctx.save(); ctx.globalAlpha*=a;
+    text(it.label.toUpperCase(),120,y,{w:500,px:24,col:CFG.colors.dim,ls:4});
+    text(fmt[it.fmt](it.value*ee),120,y+72,{w:800,px:76});
+    // bar
+    const bx=820, bw=980, by=y+34;
+    ctx.fillStyle='rgba(255,255,255,0.07)';ctx.beginPath();ctx.roundRect(bx,by,bw,18,9);ctx.fill();
+    const fw=Math.max(0.01,bw*(it.value/it.max)*ee);
+    ctx.fillStyle=grad(bx,bx+bw);ctx.shadowColor='rgba(45,226,197,0.5)';ctx.shadowBlur=16;
+    ctx.beginPath();ctx.roundRect(bx,by,fw,18,9);ctx.fill();
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+function sceneOutro(t){
+  const C=CFG.outro;
+  ctx.save();
+  const p1=easeOut(prog(t,C.in1)), p2=easeOut(prog(t,C.in2)), p3=easeOut(prog(t,C.inCta));
+  // concentric rings
+  for(let i=0;i<4;i++){
+    const r=(200+i*140)*(0.6+0.4*easeOut(prog(t,[0,1.4])))+Math.sin(t*1.2+i)*8;
+    ctx.globalAlpha=(0.22-i*0.04);ctx.strokeStyle=i%2?CFG.colors.b:CFG.colors.a;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(W/2,H/2,r,0,6.283);ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  text(C.line1,W/2,H/2-20+(1-p1)*40,{w:800,px:130,align:'center',alpha:p1});
+  ctx.save();ctx.globalAlpha*=p2;
+  setFont(800,130);const w2=ctx.measureText(C.line2).width;
+  ctx.fillStyle=grad(W/2-w2/2,W/2+w2/2);ctx.textAlign='center';
+  ctx.fillText(C.line2,W/2,H/2+130+(1-p2)*40);ctx.restore();
+  // CTA pill
+  ctx.save();ctx.globalAlpha=p3;
+  const pw=360,ph=76,px=W/2-pw/2,py=H/2+230+(1-p3)*20;
+  ctx.strokeStyle=grad(px,px+pw);ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.roundRect(px,py,pw,ph,38);ctx.stroke();
+  text(C.cta,W/2,py+50,{w:700,px:32,align:'center',ls:3});
+  ctx.restore();
+  ctx.restore();
+}
+const SCENE_FN = { intro:sceneIntro, chain:sceneChain, stats:sceneStats, outro:sceneOutro };
+
+// ───────────────────────── wrapper DOM ─────────────────────────
+const $ = id=>document.getElementById(id);
+$('brand').innerHTML = `${CFG.chrome.brand[0]}<i>${CFG.chrome.brand[1]}</i>`;
+$('tag').textContent = CFG.chrome.tag;
+const mmss = s=>{const m=Math.floor(s/60),x=Math.floor(s%60);return String(m).padStart(2,'0')+':'+String(x).padStart(2,'0');};
+
+// ───────────────────────── render(t): pure function of time ─────────────────────────
+window.render = function(t){
+  t = clamp(t,0,CFG.duration);
+  ctx.setTransform(1,0,0,1,0,0);
+  background(t);
+  let label = CFG.scenes[0].label;
+  for(const sc of CFG.scenes){
+    if(t<sc.start||t>sc.end) continue;
+    const f=CFG.fade;
+    const aIn = sc.start===0?1:clamp((t-sc.start)/f);
+    const aOut = sc.end>=CFG.duration?1:clamp((sc.end-t)/f);
+    ctx.save();
+    ctx.globalAlpha=Math.min(aIn,aOut);
+    SCENE_FN[sc.id](t-sc.start);
+    ctx.restore();
+    if(aIn>=.5) label=sc.label;
+  }
+  $('scene').textContent=label;
+  $('clock').textContent=`${mmss(t)} / ${mmss(CFG.duration)}`;
+  $('fill').style.width=(t/CFG.duration*100)+'%';
+};
+
+// ───────────────────────── boot ─────────────────────────
+window.ready = Promise.all(CFG.font.weights.map(w=>document.fonts.load(`${w} 48px ${CFG.font.family}`)))
+  .then(()=>document.fonts.ready).then(()=>{ window.render(0); return true; });
+</script>
+</body>
+</html>
